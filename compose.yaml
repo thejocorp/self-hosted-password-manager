@@ -1,0 +1,46 @@
+# Vaultwarden behind Caddy. Caddy gets the HTTPS certificate and is the only thing with open ports.
+#
+#   cp vaultwarden.env.example vaultwarden.env     # then edit DOMAIN
+#   cp caddy/Caddyfile.private caddy/Caddyfile     # or Caddyfile.public, see the README
+#   docker compose up -d
+#
+# Update: change the vaultwarden tag (pin an exact version), docker compose pull && docker compose up -d
+services:
+  vaultwarden:
+    image: vaultwarden/server:1.37.4
+    container_name: vaultwarden
+    restart: unless-stopped
+    env_file: vaultwarden.env
+    volumes:
+      - ./data:/data
+    networks: [vault]
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  caddy:
+    image: caddy:2.10
+    container_name: vault-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env, e.g. DOMAIN=vault.example.com}
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks: [vault]
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  vault: {}
+
+volumes:
+  caddy-data: {}
+  caddy-config: {}

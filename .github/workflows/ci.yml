@@ -1,0 +1,40 @@
+name: checks
+on:
+  push:
+  pull_request:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: shell scripts
+        run: shellcheck scripts/*.sh
+      - name: the pinned images exist
+        run: |
+          for img in $(grep -oE 'image: [^ ]+' compose.yaml | cut -d' ' -f2); do
+            docker manifest inspect "$img" >/dev/null && echo "ok $img"
+          done
+      - name: compose file
+        run: |
+          cp .env.example .env
+          cp vaultwarden.env.example vaultwarden.env
+          cp caddy/Caddyfile.private caddy/Caddyfile
+          docker compose config --quiet && echo "compose.yaml ok"
+      - name: both Caddyfiles
+        run: |
+          for f in caddy/Caddyfile.private caddy/Caddyfile.public; do
+            docker run --rm -e DOMAIN=vault.example.com -v "$PWD/$f:/etc/caddy/Caddyfile:ro" \
+              "$(grep -oE 'image: caddy:[^ ]+' compose.yaml | cut -d' ' -f2)" \
+              caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+          done
+      - name: backup and restore, end to end
+        run: |
+          sudo apt-get install -y -qq sqlite3 >/dev/null
+          mkdir -p t/data/attachments/a
+          sqlite3 t/data/db.sqlite3 'create table x(y); insert into x values(42);'
+          echo hi > t/data/attachments/a/f
+          scripts/backup.sh t/data t/backups
+          test "$(stat -c %a t/backups/vaultwarden-*.tar.gz)" = 600
+          mkdir t/r && tar -xzf t/backups/vaultwarden-*.tar.gz -C t/r
+          test "$(sqlite3 t/r/db.sqlite3 'select y from x')" = 42
+          test "$(cat t/r/attachments/a/f)" = hi

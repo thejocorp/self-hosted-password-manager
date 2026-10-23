@@ -1,0 +1,17 @@
+# Private: the vault answers only to your home network and your VPN (WireGuard, Tailscale,
+# NetBird...). It still gets a normal Let's Encrypt certificate, so every Bitwarden app trusts it:
+# Caddy answers the certificate challenge on its own, before this site's rules run, and everyone
+# else from the internet gets a 403. Add your VPN's range if it is not in the list below.
+{$DOMAIN} {
+	@outside not remote_ip private_ranges 100.64.0.0/10
+	respond @outside "Private." 403
+
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+	reverse_proxy vaultwarden:80 {
+		header_up X-Real-IP {remote_host}
+	}
+}

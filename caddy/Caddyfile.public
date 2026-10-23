@@ -1,0 +1,19 @@
+# Public: the vault is reachable from anywhere, like bitwarden.com. Fine with strong master
+# passwords and two-step login on every account; keep the admin page off (no ADMIN_TOKEN).
+{$DOMAIN} {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+	# the admin page is never served from outside, even when ADMIN_TOKEN is set
+	@admin_outside {
+		path /admin*
+		not remote_ip private_ranges
+	}
+	respond @admin_outside 404
+
+	reverse_proxy vaultwarden:80 {
+		header_up X-Real-IP {remote_host}
+	}
+}

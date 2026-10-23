@@ -1,0 +1,5 @@
+data/
+backups/
+vaultwarden.env
+.env
+caddy/Caddyfile
